@@ -1,0 +1,9 @@
+[submodule "malasvine/pi-k8s-ctx"]
+	path = malasvine/pi-k8s-ctx
+	url = https://github.com/tomasdedic/pi-k8s-ctx.git
+[submodule "pi-k8s-ctx"]
+	path = pi-k8s-ctx
+	url = https://github.com/tomasdedic/pi-k8s-ctx.git
+[submodule "pi-side-agents"]
+	path = pi-side-agents
+	url = https://github.com/tomasdedic/pi-side-agents.git
