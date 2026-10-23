@@ -1,0 +1,4 @@
+node_modules/
+ranger.sqlite*
+outpost.known_hosts
+*.log

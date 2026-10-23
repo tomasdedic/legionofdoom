@@ -1,0 +1,90 @@
+data: {"type":"snapshot","entries":[],"tools":[],"compactions":[],"inbox":[],"agent":{"model":{"provider":"faux","modelId":"faux-1"}},"usage":{"models":{},"tools":{}}}
+
+data: {"type":"message_start","message":{"role":"user","content":"list files","timestamp":1791532741587}}
+
+data: {"type":"message_end","entry":{"model":[{"role":"user","content":"list files","timestamp":1791532741587}],"kind":"pi.user","id":7,"conversationId":1}}
+
+data: {"type":"submission","record":{"conversationId":1,"type":"input","status":"placed","entry":7,"id":8}}
+
+data: {"type":"run_start","inputs":[8]}
+
+data: {"type":"turn_start"}
+
+data: {"type":"message_start","message":{"role":"system","content":"","sections":{"ranger":"<ranger>\nYou are a Ranger worker. Your tools execute in a local sandbox (cwd /Users/ts/GIT/ai/pi-durable-gothrough).\n</ranger>"},"toolsAdded":[{"name":"read","description":"Read the contents of a text file. Output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.","parameters":{"type":"object","required":["path"],"properties":{"path":{"type":"string","description":"Path to the file to read (relative or absolute)"},"offset":{"type":"number","description":"Line number to start reading from (1-indexed)"},"limit":{"type":"number","description":"Maximum number of lines to read"}}}},{"name":"write","description":"Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.","parameters":{"type":"object","required":["path","content"],"properties":{"path":{"type":"string","description":"Path to the file to write (relative or absolute)"},"content":{"type":"string","description":"Content to write to the file"}}}},{"name":"edit","description":"Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.","parameters":{"type":"object","required":["path","edits"],"properties":{"path":{"type":"string","description":"Path to the file to edit (relative or absolute)"},"edits":{"type":"array","items":{"type":"object","required":["oldText","newText"],"properties":{"oldText":{"type":"string","description":"Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."},"newText":{"type":"string","description":"Replacement text for this targeted edit."}}},"description":"One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."}}}},{"name":"bash","description":"Execute a bash command in the current working directory. Returns combined stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.","parameters":{"type":"object","required":["command"],"properties":{"command":{"type":"string","description":"Bash command to execute"},"timeout":{"type":"number","description":"Timeout in seconds (optional, no default timeout)"}}}}],"timestamp":1791532741593}}
+
+data: {"type":"message_end","entry":{"model":[{"role":"system","content":"","sections":{"ranger":"<ranger>\nYou are a Ranger worker. Your tools execute in a local sandbox (cwd /Users/ts/GIT/ai/pi-durable-gothrough).\n</ranger>"},"toolsAdded":[{"name":"read","description":"Read the contents of a text file. Output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.","parameters":{"type":"object","required":["path"],"properties":{"path":{"type":"string","description":"Path to the file to read (relative or absolute)"},"offset":{"type":"number","description":"Line number to start reading from (1-indexed)"},"limit":{"type":"number","description":"Maximum number of lines to read"}}}},{"name":"write","description":"Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.","parameters":{"type":"object","required":["path","content"],"properties":{"path":{"type":"string","description":"Path to the file to write (relative or absolute)"},"content":{"type":"string","description":"Content to write to the file"}}}},{"name":"edit","description":"Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.","parameters":{"type":"object","required":["path","edits"],"properties":{"path":{"type":"string","description":"Path to the file to edit (relative or absolute)"},"edits":{"type":"array","items":{"type":"object","required":["oldText","newText"],"properties":{"oldText":{"type":"string","description":"Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call."},"newText":{"type":"string","description":"Replacement text for this targeted edit."}}},"description":"One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead."}}}},{"name":"bash","description":"Execute a bash command in the current working directory. Returns combined stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.","parameters":{"type":"object","required":["command"],"properties":{"command":{"type":"string","description":"Bash command to execute"},"timeout":{"type":"number","description":"Timeout in seconds (optional, no default timeout)"}}}}],"timestamp":1791532741593}],"kind":"pi.system","id":10,"conversationId":1,"byTaskId":9}}
+
+data: {"type":"message_start","message":{"role":"assistant","content":[{"type":"toolCall","id":"demo-e701ohyqp3n","name":"bash","arguments":{"command":"pwd && ls"}}],"api":"faux:1791532737820:53q2dbdhufa","provider":"faux","model":"faux-1","usage":{"input":699,"output":7,"cacheRead":0,"cacheWrite":699,"totalTokens":1405,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","timestamp":1791532737820}}
+
+data: {"type":"message_end","entry":{"model":[{"role":"assistant","content":[{"type":"toolCall","id":"demo-e701ohyqp3n","name":"bash","arguments":{"command":"pwd && ls"}}],"api":"faux:1791532737820:53q2dbdhufa","provider":"faux","model":"faux-1","usage":{"input":699,"output":7,"cacheRead":0,"cacheWrite":699,"totalTokens":1405,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","timestamp":1791532737820}],"kind":"pi.assistant","id":11,"conversationId":1,"byTaskId":9}}
+
+data: {"type":"usage_changed","usage":{"models":{"faux/faux-1":{"input":699,"output":7,"cacheRead":0,"cacheWrite":699,"totalTokens":1405,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}},"tools":{}}}
+
+data: {"type":"tool_execution_start","toolCallId":"demo-e701ohyqp3n","toolName":"bash","args":{"command":"pwd && ls"}}
+
+data: {"type":"tool_execution_update","toolCallId":"demo-e701ohyqp3n","toolName":"bash","output":{"set":"/Users/ts/GIT/ai/pi-durable-gothrough\n"}}
+
+data: {"type":"tool_execution_end","toolCallId":"demo-e701ohyqp3n","toolName":"bash","entry":{"model":[{"role":"toolResult","toolCallId":"demo-e701ohyqp3n","toolName":"bash","content":[{"type":"text","text":"/Users/ts/GIT/ai/pi-durable-gothrough\nnode_modules\npackage-lock.json\npackage.json\nranger.mjs\nranger.sqlite\nranger.sqlite-shm\nranger.sqlite-wal\ntest\nui\n"}],"isError":false,"durationMs":9,"timestamp":1791532741634}],"data":{"diagnostics":[]},"kind":"pi.tool-result","id":13,"conversationId":1,"byTaskId":12}}
+
+data: {"type":"message_start","message":{"role":"toolResult","toolCallId":"demo-e701ohyqp3n","toolName":"bash","content":[{"type":"text","text":"/Users/ts/GIT/ai/pi-durable-gothrough\nnode_modules\npackage-lock.json\npackage.json\nranger.mjs\nranger.sqlite\nranger.sqlite-shm\nranger.sqlite-wal\ntest\nui\n"}],"isError":false,"durationMs":9,"timestamp":1791532741634}}
+
+data: {"type":"message_end","entry":{"model":[{"role":"toolResult","toolCallId":"demo-e701ohyqp3n","toolName":"bash","content":[{"type":"text","text":"/Users/ts/GIT/ai/pi-durable-gothrough\nnode_modules\npackage-lock.json\npackage.json\nranger.mjs\nranger.sqlite\nranger.sqlite-shm\nranger.sqlite-wal\ntest\nui\n"}],"isError":false,"durationMs":9,"timestamp":1791532741634}],"data":{"diagnostics":[]},"kind":"pi.tool-result","id":13,"conversationId":1,"byTaskId":12}}
+
+data: {"type":"turn_end"}
+
+data: {"type":"turn_start"}
+
+data: {"type":"message_start","message":{"role":"assistant","content":[{"type":"text","text":"Listed the directory. (faux model: queue another 25 rounds by restarting)"}],"api":"faux:1791532737820:53q2dbdhufa","provider":"faux","model":"faux-1","usage":{"input":53,"output":19,"cacheRead":699,"cacheWrite":53,"totalTokens":824,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":1791532737820}}
+
+data: {"type":"message_end","entry":{"model":[{"role":"assistant","content":[{"type":"text","text":"Listed the directory. (faux model: queue another 25 rounds by restarting)"}],"api":"faux:1791532737820:53q2dbdhufa","provider":"faux","model":"faux-1","usage":{"input":53,"output":19,"cacheRead":699,"cacheWrite":53,"totalTokens":824,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":1791532737820}],"kind":"pi.assistant","id":15,"conversationId":1,"byTaskId":14}}
+
+data: {"type":"turn_end"}
+
+data: {"type":"run_end","inputs":[8]}
+
+data: {"type":"submission","record":{"conversationId":1,"type":"input","status":"done","entry":7,"id":8,"answer":15}}
+
+data: {"type":"usage_changed","usage":{"models":{"faux/faux-1":{"input":752,"output":26,"cacheRead":699,"cacheWrite":752,"totalTokens":2229,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}},"tools":{}}}
+
+data: {"type":"message_start","message":{"role":"user","content":"second task","timestamp":1791532745617}}
+
+data: {"type":"message_end","entry":{"model":[{"role":"user","content":"second task","timestamp":1791532745617}],"kind":"pi.user","id":16,"conversationId":1}}
+
+data: {"type":"submission","record":{"conversationId":1,"type":"input","status":"placed","entry":16,"id":17}}
+
+data: {"type":"run_start","inputs":[17]}
+
+data: {"type":"turn_start"}
+
+data: {"type":"message_start","message":{"role":"assistant","content":[{"type":"toolCall","id":"demo-52733kwkqy7","name":"bash","arguments":{"command":"pwd && ls"}}],"api":"faux:1791532737820:53q2dbdhufa","provider":"faux","model":"faux-1","usage":{"input":25,"output":7,"cacheRead":752,"cacheWrite":26,"totalTokens":810,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","timestamp":1791532737820}}
+
+data: {"type":"message_end","entry":{"model":[{"role":"assistant","content":[{"type":"toolCall","id":"demo-52733kwkqy7","name":"bash","arguments":{"command":"pwd && ls"}}],"api":"faux:1791532737820:53q2dbdhufa","provider":"faux","model":"faux-1","usage":{"input":25,"output":7,"cacheRead":752,"cacheWrite":26,"totalTokens":810,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","timestamp":1791532737820}],"kind":"pi.assistant","id":19,"conversationId":1,"byTaskId":18}}
+
+data: {"type":"usage_changed","usage":{"models":{"faux/faux-1":{"input":777,"output":33,"cacheRead":1451,"cacheWrite":778,"totalTokens":3039,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}},"tools":{}}}
+
+data: {"type":"tool_execution_start","toolCallId":"demo-52733kwkqy7","toolName":"bash","args":{"command":"pwd && ls"}}
+
+data: {"type":"tool_execution_update","toolCallId":"demo-52733kwkqy7","toolName":"bash","output":{"set":"/Users/ts/GIT/ai/pi-durable-gothrough\n"}}
+
+data: {"type":"tool_execution_end","toolCallId":"demo-52733kwkqy7","toolName":"bash","entry":{"model":[{"role":"toolResult","toolCallId":"demo-52733kwkqy7","toolName":"bash","content":[{"type":"text","text":"/Users/ts/GIT/ai/pi-durable-gothrough\nnode_modules\npackage-lock.json\npackage.json\nranger.mjs\nranger.sqlite\nranger.sqlite-shm\nranger.sqlite-wal\ntest\nui\n"}],"isError":false,"durationMs":7,"timestamp":1791532745652}],"data":{"diagnostics":[]},"kind":"pi.tool-result","id":21,"conversationId":1,"byTaskId":20}}
+
+data: {"type":"message_start","message":{"role":"toolResult","toolCallId":"demo-52733kwkqy7","toolName":"bash","content":[{"type":"text","text":"/Users/ts/GIT/ai/pi-durable-gothrough\nnode_modules\npackage-lock.json\npackage.json\nranger.mjs\nranger.sqlite\nranger.sqlite-shm\nranger.sqlite-wal\ntest\nui\n"}],"isError":false,"durationMs":7,"timestamp":1791532745652}}
+
+data: {"type":"message_end","entry":{"model":[{"role":"toolResult","toolCallId":"demo-52733kwkqy7","toolName":"bash","content":[{"type":"text","text":"/Users/ts/GIT/ai/pi-durable-gothrough\nnode_modules\npackage-lock.json\npackage.json\nranger.mjs\nranger.sqlite\nranger.sqlite-shm\nranger.sqlite-wal\ntest\nui\n"}],"isError":false,"durationMs":7,"timestamp":1791532745652}],"data":{"diagnostics":[]},"kind":"pi.tool-result","id":21,"conversationId":1,"byTaskId":20}}
+
+data: {"type":"turn_end"}
+
+data: {"type":"turn_start"}
+
+data: {"type":"message_start","message":{"role":"assistant","content":[{"type":"text","text":"Listed the directory. (faux model: queue another 25 rounds by restarting)"}],"api":"faux:1791532737820:53q2dbdhufa","provider":"faux","model":"faux-1","usage":{"input":53,"output":19,"cacheRead":777,"cacheWrite":53,"totalTokens":902,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":1791532737820}}
+
+data: {"type":"message_end","entry":{"model":[{"role":"assistant","content":[{"type":"text","text":"Listed the directory. (faux model: queue another 25 rounds by restarting)"}],"api":"faux:1791532737820:53q2dbdhufa","provider":"faux","model":"faux-1","usage":{"input":53,"output":19,"cacheRead":777,"cacheWrite":53,"totalTokens":902,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","timestamp":1791532737820}],"kind":"pi.assistant","id":23,"conversationId":1,"byTaskId":22}}
+
+data: {"type":"turn_end"}
+
+data: {"type":"run_end","inputs":[17]}
+
+data: {"type":"submission","record":{"conversationId":1,"type":"input","status":"done","entry":16,"id":17,"answer":23}}
+
+data: {"type":"usage_changed","usage":{"models":{"faux/faux-1":{"input":830,"output":52,"cacheRead":2228,"cacheWrite":831,"totalTokens":3941,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}},"tools":{}}}
+
