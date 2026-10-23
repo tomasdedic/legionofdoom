@@ -1,0 +1,96 @@
+---
+apiVersion: observability.openshift.io/v1
+kind: ClusterLogForwarder
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "2"
+  name: cluster-collector
+  namespace: openshift-logging
+spec:
+  managementState: Managed
+  collector:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    nodeSelector:
+      node-role.kubernetes.io/master: ""
+    tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+        operator: Exists
+  inputs:
+    - name: audit-api
+      type: audit
+      audit:
+        sources:
+          - kubeAPI
+          - openshiftAPI
+  outputs:
+    - name: loki-audit
+      type: lokiStack
+      lokiStack:
+        target:
+          name: logging-loki
+          namespace: openshift-logging
+        authentication:
+          token:
+            from: serviceAccount
+      tls:
+        ca:
+          key: service-ca.crt
+          configMapName: openshift-service-ca.crt
+  filters:
+    - name: audit-policy
+      type: kubeAPIAudit
+      kubeAPIAudit:
+        rules:
+          - level: None
+            resources:
+              - group: authorization.k8s.io
+                resources:
+                  - subjectaccessreviews
+                  - selfsubjectaccessreviews
+                  - selfsubjectrulesreviews
+                  - localsubjectaccessreviews
+              - group: authentication.k8s.io
+                resources:
+                  - tokenreviews
+                  - selfsubjectreviews
+          - level: None
+            namespaces:
+              - openshift-console-user-settings
+            resources:
+              - resources:
+                  - configmaps
+          - level: Request
+            users:
+              - system:admin
+            verbs:
+              - create
+              - update
+              - patch
+              - delete
+          - level: Request
+            userGroups:
+              - system:authenticated:oauth
+            verbs:
+              - create
+              - update
+              - patch
+              - delete
+          - level: None
+  pipelines:
+    - name: audit-logs
+      inputRefs:
+        - audit-api
+      filterRefs:
+        - audit-policy
+      outputRefs:
+        - loki-audit
+  serviceAccount:
+    name: cluster-logging-collector

@@ -1,0 +1,389 @@
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: kubevirt-vm-lifecycle
+  namespace: openshift-perses
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  labels:
+    app.kubernetes.io/name: perses-dashboard
+    app.kubernetes.io/instance: kubevirt-vm-lifecycle
+    app.kubernetes.io/part-of: perses-operator
+spec:
+  config:
+    display:
+      name: "KubeVirt / VM Lifecycle"
+      description: "Shows VM creation and deletion trends for currently existing namespaces. Deletions are calculated indirectly from metrics. For historical data on deleted namespaces with user and timestamp, check the Audit Logs."
+    duration: 30d
+    refreshInterval: 1m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: days
+          display:
+            name: "Period"
+            hidden: false
+          defaultValue: "15d"
+          plugin:
+            kind: StaticListVariable
+            spec:
+              values:
+                - "7d"
+                - "15d"
+                - "30d"
+      - kind: ListVariable
+        spec:
+          name: namespace
+          display:
+            name: "Namespace"
+            hidden: false
+          allowAllValue: true
+          allowMultiple: true
+          defaultValue: "$__all"
+          plugin:
+            kind: PrometheusLabelValuesVariable
+            spec:
+              labelName: namespace
+              matchers:
+                - 'kubevirt_vm_info'
+    panels:
+      namespace_notice:
+        kind: Panel
+        spec:
+          display:
+            name: "Notice"
+          plugin:
+            kind: Markdown
+            spec:
+              text: |
+                > **Namespace scope limitation**
+                >
+                > This dashboard only shows data for **namespaces that currently exist** in the cluster.
+                > If a namespace was deleted, its metrics are no longer exported by KubeVirt and will **not appear** here — even within the selected time period.
+                >
+                > For historical data including deleted namespaces (with user and timestamp), check the **Audit Logs**.
+
+                Other KubeVirt visualizations are available under **Virtualization / Overview**.
+      created_count:
+        kind: Panel
+        spec:
+          display:
+            name: "VMs Created (Period)"
+            description: "Total VMs created in selected period"
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              format:
+                unit: decimal
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >
+                      round(sum(increase(kubevirt_vm_created_total{namespace=~"$namespace"}[$days])))
+      deleted_count:
+        kind: Panel
+        spec:
+          display:
+            name: "VMs Deleted (Period)"
+            description: "Total VMs deleted in selected period (indirect: calculated from metric delta; deleted namespaces excluded)"
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              format:
+                unit: decimal
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >
+                      clamp_min(round(sum(
+                        sum_over_time(
+                          clamp_min(
+                            (kubevirt_number_of_vms{namespace=~"$namespace"} offset 1d)
+                            + increase(kubevirt_vm_created_total{namespace=~"$namespace"}[1d])
+                            - kubevirt_number_of_vms{namespace=~"$namespace"}
+                          , 0)[$days:1d]
+                        )
+                      )), 0)
+      running_vms_count:
+        kind: Panel
+        spec:
+          display:
+            name: "Running VMs"
+            description: "VMs currently in Running phase"
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              format:
+                unit: decimal
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >
+                      sum(kubevirt_vmi_info{phase="running"})
+      current_vms:
+        kind: Panel
+        spec:
+          display:
+            name: "Total VMs"
+            description: "Total VMs in all states (running, stopped, paused)"
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              format:
+                unit: decimal
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >
+                      sum(kubevirt_number_of_vms{namespace=~"$namespace"})
+      created_trend:
+        kind: Panel
+        spec:
+          display:
+            name: "VMs Created Over Time"
+            description: "Daily VM creation count per namespace over the selected period"
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+                mode: list
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >
+                      sum by (namespace) (increase(kubevirt_vm_created_total{namespace=~"$namespace"}[1d]))
+                    seriesNameFormat: "{{namespace}}"
+      deleted_trend:
+        kind: Panel
+        spec:
+          display:
+            name: "VMs Deleted Over Time"
+            description: "Daily VM deletion count per namespace over the selected period (indirect: calculated from metric delta; deleted namespaces excluded)"
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+                mode: list
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >
+                      clamp_min(sum by (namespace) (
+                        (kubevirt_number_of_vms{namespace=~"$namespace"} offset 1d)
+                        + (increase(kubevirt_vm_created_total{namespace=~"$namespace"}[1d]))
+                        - kubevirt_number_of_vms{namespace=~"$namespace"}
+                      ), 0)
+                    seriesNameFormat: "{{namespace}}"
+      deleted_per_ns:
+        kind: Panel
+        spec:
+          display:
+            name: "Deleted VMs per Namespace"
+            description: "Total VMs deleted per namespace over the selected period (indirect: calculated from metric delta; deleted namespaces excluded)"
+          plugin:
+            kind: BarChart
+            spec:
+              calculation: last
+              format:
+                unit: decimal
+              mode: value
+              sort: desc
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >
+                      clamp_min(round(sum by (namespace) (
+                        sum_over_time(
+                          clamp_min(
+                            (kubevirt_number_of_vms{namespace=~"$namespace"} offset 1d)
+                            + increase(kubevirt_vm_created_total{namespace=~"$namespace"}[1d])
+                            - kubevirt_number_of_vms{namespace=~"$namespace"}
+                          , 0)[$days:1d]
+                        )
+                      )), 0)
+                    seriesNameFormat: "{{namespace}}"
+      created_per_ns:
+        kind: Panel
+        spec:
+          display:
+            name: "Created VMs per Namespace"
+            description: "Total VMs created per namespace over the selected period"
+          plugin:
+            kind: BarChart
+            spec:
+              calculation: last
+              format:
+                unit: decimal
+              mode: value
+              sort: desc
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >
+                      round(sum by (namespace) (increase(kubevirt_vm_created_total{namespace=~"$namespace"}[$days])))
+                    seriesNameFormat: "{{namespace}}"
+      current_per_ns:
+        kind: Panel
+        spec:
+          display:
+            name: "Current VMs per Namespace"
+            description: "Live count of VMs per namespace"
+          plugin:
+            kind: BarChart
+            spec:
+              calculation: last-number
+              format:
+                unit: decimal
+              mode: value
+              sort: desc
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >
+                      sum by (namespace) (kubevirt_number_of_vms{namespace=~"$namespace"})
+                    seriesNameFormat: "{{namespace}}"
+      running_per_ns:
+        kind: Panel
+        spec:
+          display:
+            name: "Running VMs per Namespace"
+            description: "Live count of running VMIs per namespace"
+          plugin:
+            kind: BarChart
+            spec:
+              calculation: last-number
+              format:
+                unit: decimal
+              mode: value
+              sort: desc
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: >
+                      sum by (namespace) (kubevirt_vmi_info{phase="running", namespace=~"$namespace"})
+                    seriesNameFormat: "{{namespace}}"
+    layouts:
+      - kind: Grid
+        spec:
+          display:
+            title: "Summary"
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 24
+              height: 6
+              content:
+                $ref: "#/spec/panels/namespace_notice"
+            - x: 0
+              "y": 3
+              width: 6
+              height: 4
+              content:
+                $ref: "#/spec/panels/created_count"
+            - x: 6
+              "y": 3
+              width: 6
+              height: 4
+              content:
+                $ref: "#/spec/panels/deleted_count"
+            - x: 12
+              "y": 3
+              width: 6
+              height: 4
+              content:
+                $ref: "#/spec/panels/running_vms_count"
+            - x: 18
+              "y": 3
+              width: 6
+              height: 4
+              content:
+                $ref: "#/spec/panels/current_vms"
+      - kind: Grid
+        spec:
+          display:
+            title: "Trends"
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 12
+              height: 6
+              content:
+                $ref: "#/spec/panels/created_trend"
+            - x: 12
+              "y": 0
+              width: 12
+              height: 6
+              content:
+                $ref: "#/spec/panels/deleted_trend"
+      - kind: Grid
+        spec:
+          display:
+            title: "Per Namespace"
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 12
+              height: 6
+              content:
+                $ref: "#/spec/panels/created_per_ns"
+            - x: 12
+              "y": 0
+              width: 12
+              height: 6
+              content:
+                $ref: "#/spec/panels/deleted_per_ns"
+            - x: 0
+              "y": 6
+              width: 12
+              height: 6
+              content:
+                $ref: "#/spec/panels/current_per_ns"
+            - x: 12
+              "y": 6
+              width: 12
+              height: 6
+              content:
+                $ref: "#/spec/panels/running_per_ns"

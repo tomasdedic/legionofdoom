@@ -1,0 +1,264 @@
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: prometheus-tsdb
+  namespace: openshift-perses
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  labels:
+    app.kubernetes.io/name: perses-dashboard
+    app.kubernetes.io/instance: prometheus-tsdb
+    app.kubernetes.io/part-of: perses-operator
+spec:
+  config:
+    display:
+      name: Prometheus / TSDB
+    duration: 1h
+    refreshInterval: 30s
+    panels:
+      "0":
+        kind: Panel
+        spec:
+          display:
+            name: Size Retention Limit
+            description: Configured size-based storage capacity limit
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              colorMode: value
+              format:
+                unit: bytes
+              thresholds:
+                steps:
+                  - color: "#5794f2"
+                    value: 0
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: max(prometheus_tsdb_retention_limit_bytes)
+      "1":
+        kind: Panel
+        spec:
+          display:
+            name: Time Retention Limit
+            description: Configured time-based retention — should read 180 after sync
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              colorMode: value
+              format:
+                unit: seconds
+              thresholds:
+                steps:
+                  - color: "#f2495c"
+                    value: 0
+                  - color: "#73bf69"
+                    value: 15465600
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: max(prometheus_tsdb_retention_limit_seconds)
+      "2":
+        kind: Panel
+        spec:
+          display:
+            name: Size Retentions Fired
+            description: Times old data was dropped due to size-based retention — non-zero means disk pressure
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              colorMode: background_solid
+              format:
+                unit: decimal
+              thresholds:
+                steps:
+                  - color: "#73bf69"
+                    value: 0
+                  - color: "#ff9830"
+                    value: 1
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum(prometheus_tsdb_size_retentions_total)
+      "3":
+        kind: Panel
+        spec:
+          display:
+            name: TSDB Disk Usage
+            description: Total disk usage across blocks, WAL, and head chunks
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: table
+                position: bottom
+                values:
+                  - last
+              visual:
+                areaOpacity: 0.3
+                connectNulls: false
+                display: line
+                lineStyle: solid
+                lineWidth: 1
+              yAxis:
+                format:
+                  unit: bytes
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum(prometheus_tsdb_storage_blocks_bytes) + sum(prometheus_tsdb_wal_storage_size_bytes) + sum(prometheus_tsdb_head_chunks_storage_size_bytes)
+                    seriesNameFormat: Total
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum(prometheus_tsdb_storage_blocks_bytes)
+                    seriesNameFormat: Blocks
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum(prometheus_tsdb_wal_storage_size_bytes)
+                    seriesNameFormat: WAL
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum(prometheus_tsdb_head_chunks_storage_size_bytes)
+                    seriesNameFormat: Head Chunks
+      "4":
+        kind: Panel
+        spec:
+          display:
+            name: Oldest Data Age
+            description: How many days back the oldest stored metric reaches
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last-number
+              colorMode: value
+              format:
+                unit: decimal
+                decimalPlaces: 1
+              thresholds:
+                steps:
+                  - color: "#5794f2"
+                    value: 0
+                  - color: "#73bf69"
+                    value: 1
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: (time() - min(prometheus_tsdb_lowest_timestamp_seconds)) / 86400
+                    seriesNameFormat: days
+      "5":
+        kind: Panel
+        spec:
+          display:
+            name: PVC Disk Capacity
+            description: Combined capacity of both prometheus-k8s PVCs (2 × 200 Gi)
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: table
+                position: bottom
+                values:
+                  - last
+              visual:
+                areaOpacity: 0.3
+                connectNulls: false
+                display: line
+                lineStyle: solid
+                lineWidth: 1
+              yAxis:
+                format:
+                  unit: bytes
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum(kubelet_volume_stats_capacity_bytes{namespace="openshift-monitoring", persistentvolumeclaim=~"prometheus-k8s-db-.*"})
+                    seriesNameFormat: Capacity
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum(kubelet_volume_stats_used_bytes{namespace="openshift-monitoring", persistentvolumeclaim=~"prometheus-k8s-db-.*"})
+                    seriesNameFormat: Used
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    query: sum(kubelet_volume_stats_available_bytes{namespace="openshift-monitoring", persistentvolumeclaim=~"prometheus-k8s-db-.*"})
+                    seriesNameFormat: Available
+    layouts:
+      - kind: Grid
+        spec:
+          display:
+            title: Storage Capacity & Usage
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 6
+              height: 6
+              content:
+                $ref: "#/spec/panels/0"
+            - x: 6
+              "y": 0
+              width: 6
+              height: 6
+              content:
+                $ref: "#/spec/panels/1"
+            - x: 12
+              "y": 0
+              width: 6
+              height: 6
+              content:
+                $ref: "#/spec/panels/2"
+            - x: 18
+              "y": 0
+              width: 6
+              height: 6
+              content:
+                $ref: "#/spec/panels/4"
+            - x: 0
+              "y": 6
+              width: 12
+              height: 10
+              content:
+                $ref: "#/spec/panels/3"
+            - x: 12
+              "y": 6
+              width: 12
+              height: 10
+              content:
+                $ref: "#/spec/panels/5"

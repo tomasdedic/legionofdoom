@@ -1,0 +1,222 @@
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: audit-overview
+  namespace: openshift-perses
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  labels:
+    app.kubernetes.io/name: perses-dashboard
+    app.kubernetes.io/instance: audit-overview
+    app.kubernetes.io/part-of: perses-operator
+spec:
+  config:
+    display:
+      name: "Audit / Overview"
+      description: >-
+        Human-initiated write actions (OAuth users and system:admin),
+        permission/group changes, certificate issuance and ServiceAccount
+        token creation, per the ClusterLogForwarder kubeAPIAudit allowlist filter
+        (openshift-platform-modernization-operations#69). Everything else is
+        dropped before it reaches Loki - see
+        logging/ClusterLogForwarder:cluster-collector.yaml for the rules.
+
+        WARNING: queries here are not label-indexed - they scan raw JSON per
+        line. A wide range (e.g. 14d) combined with auto-refresh caused a
+        live incident on 2026-09-14: the query re-ran every refresh
+        interval, each run taking 3+ minutes, and saturated the querier
+        enough to 502 Loki for everyone. Auto-refresh is therefore OFF by
+        default on this dashboard (Perses has no way to gate refresh by the
+        selected range, so this is dashboard-wide) - if you turn it back on,
+        do it only with a narrow range. The time range picker (top right)
+        is the only range control on this dashboard - a wide range still
+        means a single wide scan on load, just not a repeating one.
+    duration: 6d
+    refreshInterval: "0s"
+    variables:
+      - kind: ListVariable
+        spec:
+          name: verb
+          display:
+            name: "Action"
+            hidden: false
+          allowAllValue: true
+          allowMultiple: true
+          defaultValue: "$__all"
+          plugin:
+            kind: StaticListVariable
+            spec:
+              values:
+                - "create"
+                - "update"
+                - "patch"
+                - "delete"
+      - kind: ListVariable
+        spec:
+          name: identity
+          display:
+            name: "Identity"
+            hidden: false
+          allowAllValue: false
+          allowMultiple: false
+          defaultValue: '=~".*"'
+          plugin:
+            kind: StaticListVariable
+            spec:
+              values:
+                - value: '=~".*"'
+                  label: "All"
+                - value: '="system:admin"'
+                  label: "system:admin (cert)"
+                - value: '!="system:admin"'
+                  label: "OAuth users"
+    panels:
+      writes_over_time:
+        kind: Panel
+        spec:
+          display:
+            name: "Human Write Actions Over Time"
+            description: "create/update/patch/delete by OAuth-authenticated users and system:admin"
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                position: bottom
+                mode: list
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: LokiTimeSeriesQuery
+                  spec:
+                    datasource:
+                      kind: LokiDatasource
+                      name: loki-audit
+                    query: >
+                      sum by (verb) (count_over_time({ log_type="audit" } | json | user_username$identity | verb=~"$verb" [5m]))
+      recent_writes_table:
+        kind: Panel
+        spec:
+          display:
+            name: "Recent Human Write Actions"
+            description: "Raw log lines - verb, user, resource, namespace, RBAC decision. Keep the time range narrow (see dashboard warning)."
+          plugin:
+            kind: LogsTable
+            spec: {}
+          queries:
+            - kind: LogQuery
+              spec:
+                plugin:
+                  kind: LokiLogQuery
+                  spec:
+                    datasource:
+                      kind: LokiDatasource
+                      name: loki-audit
+                    query: >
+                      { log_type="audit" } | json | user_username$identity | verb=~"$verb" | json request="requestObject" | line_format "user={{.user_username}} {{.verb}} {{.objectRef_resource}}/{{.objectRef_name}} ns={{.objectRef_namespace}} decision={{.annotations_authorization_k8s_io_decision}} payload={{.request}}"
+      permission_changes_table:
+        kind: Panel
+        spec:
+          display:
+            name: "Permission / Group Changes"
+            description: "Writes to roles, (cluster)rolebindings or groups - who granted or changed access. Rare by design; empty is normal. Keep the time range narrow (see dashboard warning)."
+          plugin:
+            kind: LogsTable
+            spec: {}
+          queries:
+            - kind: LogQuery
+              spec:
+                plugin:
+                  kind: LokiLogQuery
+                  spec:
+                    datasource:
+                      kind: LokiDatasource
+                      name: loki-audit
+                    query: >
+                      { log_type="audit" } | json | objectRef_resource=~"rolebindings|clusterrolebindings|roles|clusterroles|groups" | line_format "by={{.user_username}} {{.verb}} {{.objectRef_resource}}/{{.objectRef_name}} decision={{.annotations_authorization_k8s_io_decision}}"
+      cert_issuance_table:
+        kind: Panel
+        spec:
+          display:
+            name: "Certificate Issuance"
+            description: "CSR create/approve/deny - who requested or approved a new client certificate identity. Keep the time range narrow (see dashboard warning)."
+          plugin:
+            kind: LogsTable
+            spec: {}
+          queries:
+            - kind: LogQuery
+              spec:
+                plugin:
+                  kind: LokiLogQuery
+                  spec:
+                    datasource:
+                      kind: LokiDatasource
+                      name: loki-audit
+                    query: >
+                      { log_type="audit" } | json | objectRef_resource="certificatesigningrequests" | line_format "user={{.user_username}} {{.verb}} {{.objectRef_name}} sub={{.objectRef_subresource}}"
+      token_creation_table:
+        kind: Panel
+        spec:
+          display:
+            name: "ServiceAccount Token Creation"
+            description: "TokenRequest API calls - who requested a token for which ServiceAccount. Keep the time range narrow (see dashboard warning)."
+          plugin:
+            kind: LogsTable
+            spec: {}
+          queries:
+            - kind: LogQuery
+              spec:
+                plugin:
+                  kind: LokiLogQuery
+                  spec:
+                    datasource:
+                      kind: LokiDatasource
+                      name: loki-audit
+                    query: >
+                      { log_type="audit" } | json | objectRef_resource="serviceaccounts" | objectRef_subresource="token" | line_format "user={{.user_username}} sa={{.objectRef_namespace}}/{{.objectRef_name}}"
+    layouts:
+      - kind: Grid
+        spec:
+          display:
+            title: "Summary"
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 24
+              height: 8
+              content:
+                $ref: "#/spec/panels/writes_over_time"
+      - kind: Grid
+        spec:
+          display:
+            title: "Raw Logs"
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 0
+              width: 24
+              height: 10
+              content:
+                $ref: "#/spec/panels/recent_writes_table"
+            - x: 0
+              "y": 10
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/permission_changes_table"
+            - x: 12
+              "y": 10
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/cert_issuance_table"
+            - x: 0
+              "y": 18
+              width: 24
+              height: 8
+              content:
+                $ref: "#/spec/panels/token_creation_table"

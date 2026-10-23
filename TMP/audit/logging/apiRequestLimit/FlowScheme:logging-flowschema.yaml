@@ -1,0 +1,27 @@
+---
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: FlowSchema
+metadata:
+  name: logging-flowschema
+spec:
+  distinguisherMethod:
+    type: ByUser
+  matchingPrecedence: 2
+  priorityLevelConfiguration:
+    name: catch-lists-logging
+  rules:
+    - resourceRules:
+        - apiGroups:
+            - "*"
+          namespaces:
+            - "*"
+          resources:
+            - "pods"
+          verbs:
+            - "list"
+            - "get"
+      subjects:
+        - kind: ServiceAccount
+          serviceAccount:
+            name: cluster-logging-collector
+            namespace: openshift-logging

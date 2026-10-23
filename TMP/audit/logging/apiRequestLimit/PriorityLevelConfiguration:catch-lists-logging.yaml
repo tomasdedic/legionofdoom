@@ -1,0 +1,17 @@
+---
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: PriorityLevelConfiguration
+metadata:
+  name: catch-lists-logging
+spec:
+  limited:
+    borrowingLimitPercent: 0
+    lendablePercent: 0
+    limitResponse:
+      type: Queue
+      queuing:
+        queues: 128
+        queueLengthLimit: 100
+        handSize: 8
+    nominalConcurrencyShares: 5
+  type: Limited

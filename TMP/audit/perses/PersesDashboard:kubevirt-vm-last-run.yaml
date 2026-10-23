@@ -1,0 +1,373 @@
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: kubevirt-vm-last-run
+  namespace: openshift-perses
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  labels:
+    app.kubernetes.io/name: perses-dashboard
+    app.kubernetes.io/instance: kubevirt-vm-last-run
+    app.kubernetes.io/part-of: perses-operator
+spec:
+  config:
+    display:
+      name: "KubeVirt / VM Last Run"
+      description: "Every VM with the time since it last stopped running"
+    duration: 1h
+    refreshInterval: 5m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: idle_min
+          display:
+            name: "Idle at least (days)"
+            hidden: false
+          defaultValue: "1"
+          plugin:
+            kind: StaticListVariable
+            spec:
+              values:
+                - "0"
+                - "1"
+                - "7"
+                - "30"
+                - "90"
+                - "180"
+      - kind: ListVariable
+        spec:
+          name: namespace
+          display:
+            name: "Namespace"
+            hidden: false
+          allowAllValue: true
+          allowMultiple: true
+          defaultValue: "$__all"
+          plugin:
+            kind: PrometheusLabelValuesVariable
+            spec:
+              labelName: namespace
+              matchers:
+                - "kubevirt_vm_info"
+    panels:
+      last_run:
+        kind: Panel
+        spec:
+          display:
+            name: "VM Last Run and Allocated Resources"
+            description: "Days since the VM last stopped running (0 = running now), with its allocated vCPU, RAM and total disk. Resource columns are gated on the same idle filter, so the table only ever shows one row per matching VM."
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              pagination: true
+              cellSettings: []
+              transforms:
+                - kind: MergeIndexedColumns
+                  spec:
+                    column: namespace
+                - kind: MergeIndexedColumns
+                  spec:
+                    column: name
+                - kind: MergeIndexedColumns
+                  spec:
+                    column: timestamp
+                - kind: JoinByColumnValue
+                  spec:
+                    columns:
+                      - namespace
+                      - name
+              columnSettings:
+                - name: namespace
+                  header: "Namespace"
+                  enableSorting: true
+                - name: name
+                  header: "VM"
+                  enableSorting: true
+                - name: "value #1"
+                  header: "Days Idle"
+                  format:
+                    unit: decimal
+                    decimalPlaces: 1
+                  enableSorting: true
+                  sort: desc
+                - name: "value #2"
+                  header: "vCPU"
+                  format:
+                    unit: decimal
+                    decimalPlaces: 0
+                  enableSorting: true
+                - name: "value #3"
+                  header: "RAM"
+                  format:
+                    unit: bytes
+                    shortValues: true
+                  enableSorting: true
+                - name: "value #4"
+                  header: "Disk"
+                  format:
+                    unit: bytes
+                    shortValues: true
+                  enableSorting: true
+                - name: timestamp
+                  hide: true
+                - name: "timestamp #1"
+                  hide: true
+                - name: "timestamp #2"
+                  hide: true
+                - name: "timestamp #3"
+                  hide: true
+                - name: "timestamp #4"
+                  hide: true
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    minStep: 1h
+                    query: >
+                      max by (namespace, name) (
+                        (time() - (kubevirt_vm_non_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0)) / 86400
+                        or
+                        (kubevirt_vm_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0) * 0
+                      ) >= $idle_min
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    minStep: 1h
+                    query: >
+                      max by (namespace, name) (kubevirt_vm_resource_requests{resource="cpu", source="guest_effective", unit="cores", namespace=~"$namespace"})
+                      and on (namespace, name) (
+                        max by (namespace, name) (
+                          (time() - (kubevirt_vm_non_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0)) / 86400
+                          or
+                          (kubevirt_vm_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0) * 0
+                        ) >= $idle_min
+                      )
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    minStep: 1h
+                    query: >
+                      max by (namespace, name) (kubevirt_vm_resource_requests{resource="memory", source="guest_effective", unit="bytes", namespace=~"$namespace"})
+                      and on (namespace, name) (
+                        max by (namespace, name) (
+                          (time() - (kubevirt_vm_non_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0)) / 86400
+                          or
+                          (kubevirt_vm_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0) * 0
+                        ) >= $idle_min
+                      )
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    minStep: 1h
+                    query: >
+                      sum by (namespace, name) (kubevirt_vm_disk_allocated_size_bytes{namespace=~"$namespace"})
+                      and on (namespace, name) (
+                        max by (namespace, name) (
+                          (time() - (kubevirt_vm_non_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0)) / 86400
+                          or
+                          (kubevirt_vm_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0) * 0
+                        ) >= $idle_min
+                      )
+      per_namespace:
+        kind: Panel
+        spec:
+          display:
+            name: "Idle Totals per Namespace"
+            description: "Reclaimable capacity: how many VMs match the current idle threshold in each namespace, and the vCPU, RAM and disk they hold while switched off."
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              pagination: true
+              cellSettings: []
+              transforms:
+                - kind: MergeIndexedColumns
+                  spec:
+                    column: namespace
+                - kind: MergeIndexedColumns
+                  spec:
+                    column: timestamp
+                - kind: JoinByColumnValue
+                  spec:
+                    columns:
+                      - namespace
+              columnSettings:
+                - name: namespace
+                  header: "Namespace"
+                  enableSorting: true
+                - name: "value #1"
+                  header: "Idle VMs"
+                  format:
+                    unit: decimal
+                    decimalPlaces: 0
+                  enableSorting: true
+                  sort: desc
+                - name: "value #2"
+                  header: "vCPU"
+                  format:
+                    unit: decimal
+                    decimalPlaces: 0
+                  enableSorting: true
+                - name: "value #3"
+                  header: "RAM"
+                  format:
+                    unit: bytes
+                    shortValues: true
+                  enableSorting: true
+                - name: "value #4"
+                  header: "Disk"
+                  format:
+                    unit: bytes
+                    shortValues: true
+                  enableSorting: true
+                - name: timestamp
+                  hide: true
+                - name: "timestamp #1"
+                  hide: true
+                - name: "timestamp #2"
+                  hide: true
+                - name: "timestamp #3"
+                  hide: true
+                - name: "timestamp #4"
+                  hide: true
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    minStep: 1h
+                    query: >
+                      count by (namespace) (
+                          max by (namespace, name) (
+                            (time() - (kubevirt_vm_non_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0)) / 86400
+                            or
+                            (kubevirt_vm_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0) * 0
+                          ) >= $idle_min
+                        )
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    minStep: 1h
+                    query: >
+                      sum by (namespace) (
+                        max by (namespace, name) (kubevirt_vm_resource_requests{resource="cpu", source="guest_effective", unit="cores", namespace=~"$namespace"})
+                        and on (namespace, name) (
+                          max by (namespace, name) (
+                            (time() - (kubevirt_vm_non_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0)) / 86400
+                            or
+                            (kubevirt_vm_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0) * 0
+                          ) >= $idle_min
+                        )
+                      )
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    minStep: 1h
+                    query: >
+                      sum by (namespace) (
+                        max by (namespace, name) (kubevirt_vm_resource_requests{resource="memory", source="guest_effective", unit="bytes", namespace=~"$namespace"})
+                        and on (namespace, name) (
+                          max by (namespace, name) (
+                            (time() - (kubevirt_vm_non_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0)) / 86400
+                            or
+                            (kubevirt_vm_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0) * 0
+                          ) >= $idle_min
+                        )
+                      )
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    minStep: 1h
+                    query: >
+                      sum by (namespace) (
+                        sum by (namespace, name) (kubevirt_vm_disk_allocated_size_bytes{namespace=~"$namespace"})
+                        and on (namespace, name) (
+                          max by (namespace, name) (
+                            (time() - (kubevirt_vm_non_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0)) / 86400
+                            or
+                            (kubevirt_vm_running_status_last_transition_timestamp_seconds{namespace=~"$namespace"} > 0) * 0
+                          ) >= $idle_min
+                        )
+                      )
+      no_transition:
+        kind: Panel
+        spec:
+          display:
+            name: "No State Transition Yet"
+            description: "VMs with neither a running nor a non-running transition timestamp, so they cannot be dated. Value is the VM's age in days. "
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              pagination: true
+              cellSettings: []
+              columnSettings:
+                - name: namespace
+                  header: "Namespace"
+                  enableSorting: true
+                - name: name
+                  header: "VM"
+                  enableSorting: true
+                - name: value
+                  header: "VM Age (days)"
+                  format:
+                    unit: decimal
+                    decimalPlaces: 1
+                  enableSorting: true
+                  sort: desc
+                - name: timestamp
+                  hide: true
+          queries:
+            - kind: TimeSeriesQuery
+              spec:
+                plugin:
+                  kind: PrometheusTimeSeriesQuery
+                  spec:
+                    minStep: 1h
+                    query: >
+                      max by (namespace, name) ((time() - kubevirt_vm_create_date_timestamp_seconds{namespace=~"$namespace"}) / 86400)
+                      unless max by (namespace, name) (kubevirt_vm_non_running_status_last_transition_timestamp_seconds > 0)
+                      unless max by (namespace, name) (kubevirt_vm_running_status_last_transition_timestamp_seconds > 0)
+    layouts:
+      - kind: Grid
+        spec:
+          display:
+            title: "VM Last Run"
+            collapse:
+              open: true
+          items:
+            - x: 0
+              "y": 6
+              width: 16
+              height: 14
+              content:
+                $ref: "#/spec/panels/last_run"
+            - x: 16
+              "y": 6
+              width: 8
+              height: 14
+              content:
+                $ref: "#/spec/panels/per_namespace"
+            - x: 0
+              "y": 20
+              width: 24
+              height: 6
+              content:
+                $ref: "#/spec/panels/no_transition"

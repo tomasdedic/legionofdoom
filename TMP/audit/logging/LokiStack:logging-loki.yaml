@@ -1,0 +1,31 @@
+---
+apiVersion: loki.grafana.com/v1
+kind: LokiStack
+metadata:
+  name: logging-loki
+  namespace: openshift-logging
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  size: 1x.pico
+  #size: 1x.demo
+  storage:
+    schemas:
+      - effectiveDate: "2024-10-01"
+        version: v13
+    secret:
+      name: logging-loki-s3
+      type: s3
+    tls:
+      caName: openshift-service-ca.crt
+  storageClassName: ocs-storagecluster-ceph-rbd
+  limits:
+    global:
+      ingestion:
+        ingestionRate: 8
+        ingestionBurstSize: 16
+      retention:
+        days: 90
+  tenants:
+    mode: openshift-logging
